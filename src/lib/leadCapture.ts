@@ -44,13 +44,13 @@ export async function saveLead(input: LeadCaptureInput) {
   const client = getConvexClient()
   const lead = normalizeLeadInput(input)
 
-  return client.mutation('leads:saveLead' as never, lead)
+  return client.mutation('leads:saveLead', lead)
 }
 
 export async function setAssistantReply(leadId: string, assistantReply: string) {
   const client = getConvexClient()
 
-  await client.mutation('leads:setAssistantReply' as never, {
+  await client.mutation('leads:setAssistantReply', {
     leadId,
     assistantReply: assistantReply.trim(),
   })

@@ -15,8 +15,32 @@ interface LeadFormState {
   message: string
 }
 
+interface AssistantRequest {
+  name: string
+  phone: string
+  email: string
+  serviceInterest: string
+  question: string
+}
+
+function validateLeadForm(data: LeadFormState) {
+  if (!data.name.trim() || !data.phone.trim() || !data.message.trim()) {
+    throw new Error('Name, phone and message are required.')
+  }
+
+  return data
+}
+
+function validateAssistantRequest(data: AssistantRequest) {
+  if (!data.name.trim() || !data.phone.trim() || !data.question.trim()) {
+    throw new Error('Name, phone and question are required.')
+  }
+
+  return data
+}
+
 const submitQuoteLead = createServerFn({ method: 'POST' })
-  .inputValidator((data: LeadFormState) => data)
+  .inputValidator(validateLeadForm)
   .handler(async ({ data }) => {
     await saveLead({
       ...data,
@@ -27,7 +51,7 @@ const submitQuoteLead = createServerFn({ method: 'POST' })
   })
 
 const askCreationAssistant = createServerFn({ method: 'POST' })
-  .inputValidator((data: LeadFormState & { question: string }) => data)
+  .inputValidator(validateAssistantRequest)
   .handler(async ({ data }) => {
     const leadId = await saveLead({
       name: data.name,
@@ -40,7 +64,7 @@ const askCreationAssistant = createServerFn({ method: 'POST' })
 
     const assistantReply = await requestAssistantReply(data.question)
 
-    await setAssistantReply(String(leadId), assistantReply)
+    await setAssistantReply(leadId, assistantReply)
 
     return { assistantReply }
   })
@@ -113,9 +137,11 @@ function HomePage() {
     try {
       const result = await askCreationAssistant({
         data: {
-          ...form,
+          name: form.name,
+          phone: form.phone,
+          email: form.email,
+          serviceInterest: form.serviceInterest,
           question,
-          message: form.message || question,
         },
       })
 
