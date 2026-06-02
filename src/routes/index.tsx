@@ -1,86 +1,250 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { createServerFn } from '@tanstack/react-start'
+import { useState } from 'react'
+import type { FormEvent } from 'react'
+import { requestAssistantReply } from '../lib/assistant'
+import { saveLead, setAssistantReply } from '../lib/leadCapture'
 
-export const Route = createFileRoute('/')({ component: App })
+export const Route = createFileRoute('/')({ component: HomePage })
 
-function App() {
+interface LeadFormState {
+  name: string
+  phone: string
+  email: string
+  serviceInterest: string
+  message: string
+}
+
+const submitQuoteLead = createServerFn({ method: 'POST' })
+  .inputValidator((data: LeadFormState) => data)
+  .handler(async ({ data }) => {
+    await saveLead({
+      ...data,
+      source: 'quote_form',
+    })
+
+    return { success: true as const }
+  })
+
+const askCreationAssistant = createServerFn({ method: 'POST' })
+  .inputValidator((data: LeadFormState & { question: string }) => data)
+  .handler(async ({ data }) => {
+    const leadId = await saveLead({
+      name: data.name,
+      phone: data.phone,
+      email: data.email,
+      serviceInterest: data.serviceInterest,
+      message: data.question,
+      source: 'creation_assistant',
+    })
+
+    const assistantReply = await requestAssistantReply(data.question)
+
+    await setAssistantReply(String(leadId), assistantReply)
+
+    return { assistantReply }
+  })
+
+const services = [
+  {
+    title: 'Slating',
+    copy: 'Premium natural and synthetic slate systems installed for long-lifespan weather protection.',
+  },
+  {
+    title: 'Tiling',
+    copy: 'Clay and concrete tile roofing with precision ridge, verge and leadwork detailing.',
+  },
+  {
+    title: 'Flat Roofing',
+    copy: 'High-performance flat roofs using modern membranes for durability and clean architectural finishes.',
+  },
+]
+
+const testimonials = [
+  {
+    name: 'A. Carter',
+    text: 'Verified homeowner review: Ben and the team replaced our tiled roof on schedule and left everything immaculate.',
+  },
+  {
+    name: 'M. Ellison',
+    text: 'Verified homeowner review: Fast response, clear quote and excellent flat roofing workmanship.',
+  },
+  {
+    name: 'R. Porter',
+    text: 'Verified homeowner review: Professional slating repairs with excellent communication from first call to completion.',
+  },
+]
+
+function HomePage() {
+  const [form, setForm] = useState<LeadFormState>({
+    name: '',
+    phone: '',
+    email: '',
+    serviceInterest: 'Slating',
+    message: '',
+  })
+  const [question, setQuestion] = useState('')
+  const [quoteStatus, setQuoteStatus] = useState('')
+  const [assistantStatus, setAssistantStatus] = useState('')
+  const [assistantReply, setAssistantReply] = useState('')
+
+  async function handleQuoteSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setQuoteStatus('Saving your quote request...')
+
+    try {
+      await submitQuoteLead({ data: form })
+      setQuoteStatus('Thank you. Your free quote request has been received.')
+      setForm((current) => ({ ...current, message: '' }))
+    } catch {
+      setQuoteStatus('Unable to save right now. Please call Ben directly on 07919 435511.')
+    }
+  }
+
+  async function handleAssistantSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+
+    if (!question.trim()) {
+      return
+    }
+
+    setAssistantStatus('Creation Assistant is preparing your answer...')
+
+    try {
+      const result = await askCreationAssistant({
+        data: {
+          ...form,
+          question,
+          message: form.message || question,
+        },
+      })
+
+      setAssistantReply(result.assistantReply)
+      setAssistantStatus('Your question was saved and answered.')
+      setQuestion('')
+    } catch {
+      setAssistantStatus('Assistant temporarily unavailable. Call Ben now on 07919 435511.')
+    }
+  }
+
   return (
-    <main className="page-wrap px-4 pb-8 pt-14">
-      <section className="island-shell rise-in relative overflow-hidden rounded-[2rem] px-6 py-10 sm:px-10 sm:py-14">
-        <div className="pointer-events-none absolute -left-20 -top-24 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(79,184,178,0.32),transparent_66%)]" />
-        <div className="pointer-events-none absolute -bottom-20 -right-20 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(47,106,74,0.18),transparent_66%)]" />
-        <p className="island-kicker mb-3">TanStack Start Base Template</p>
-        <h1 className="display-title mb-5 max-w-3xl text-4xl leading-[1.02] font-bold tracking-tight text-[var(--sea-ink)] sm:text-6xl">
-          Start simple, ship quickly.
+    <main className="mx-auto w-full max-w-6xl px-4 pb-16 pt-10 text-stone-100">
+      <section className="rounded-3xl border border-[#8a6b20] bg-[#0d0d0d] p-8 shadow-[0_18px_45px_rgba(0,0,0,0.45)] sm:p-12">
+        <p className="text-xs font-semibold tracking-[0.35em] text-[#d4af37]">CREATION ROOFING</p>
+        <h1 className="mt-4 text-4xl font-bold text-[#f8e7aa] sm:text-6xl">
+          Premium roofing craftsmanship in Peterborough.
         </h1>
-        <p className="mb-8 max-w-2xl text-base text-[var(--sea-ink-soft)] sm:text-lg">
-          This base starter intentionally keeps things light: two routes, clean
-          structure, and the essentials you need to build from scratch.
+        <p className="mt-6 max-w-3xl text-base leading-7 text-stone-300 sm:text-lg">
+          Led by Ben, Creation Roofing delivers luxury-grade slating, tiling and flat roofing from 43 Reeves Way, Peterborough PE1 5LF.
+          Every project is surveyed professionally and quoted clearly.
         </p>
-        <div className="flex flex-wrap gap-3">
-          <a
-            href="/about"
-            className="rounded-full border border-[rgba(50,143,151,0.3)] bg-[rgba(79,184,178,0.14)] px-5 py-2.5 text-sm font-semibold text-[var(--lagoon-deep)] no-underline transition hover:-translate-y-0.5 hover:bg-[rgba(79,184,178,0.24)]"
-          >
-            About This Starter
+        <div className="mt-8 flex flex-wrap gap-3">
+          <a href="tel:07919435511" className="rounded-full bg-[#d4af37] px-6 py-3 font-semibold text-black no-underline">
+            Call Ben: 07919 435511
           </a>
-          <a
-            href="https://tanstack.com/router"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-full border border-[rgba(23,58,64,0.2)] bg-white/50 px-5 py-2.5 text-sm font-semibold text-[var(--sea-ink)] no-underline transition hover:-translate-y-0.5 hover:border-[rgba(23,58,64,0.35)]"
-          >
-            Router Guide
+          <a href="#free-quote" className="rounded-full border border-[#d4af37] px-6 py-3 font-semibold text-[#f8e7aa] no-underline">
+            Get a Free Quote
           </a>
         </div>
       </section>
 
-      <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          [
-            'Type-Safe Routing',
-            'Routes and links stay in sync across every page.',
-          ],
-          [
-            'Server Functions',
-            'Call server code from your UI without creating API boilerplate.',
-          ],
-          [
-            'Streaming by Default',
-            'Ship progressively rendered responses for faster experiences.',
-          ],
-          [
-            'Tailwind Native',
-            'Design quickly with utility-first styling and reusable tokens.',
-          ],
-        ].map(([title, desc], index) => (
-          <article
-            key={title}
-            className="island-shell feature-card rise-in rounded-2xl p-5"
-            style={{ animationDelay: `${index * 90 + 80}ms` }}
-          >
-            <h2 className="mb-2 text-base font-semibold text-[var(--sea-ink)]">
-              {title}
-            </h2>
-            <p className="m-0 text-sm text-[var(--sea-ink-soft)]">{desc}</p>
+      <section className="mt-10 grid gap-4 md:grid-cols-3">
+        {services.map((service) => (
+          <article key={service.title} className="rounded-2xl border border-[#594511] bg-black/60 p-6">
+            <h2 className="text-2xl font-semibold text-[#f3d56d]">{service.title}</h2>
+            <p className="mt-3 text-sm leading-6 text-stone-300">{service.copy}</p>
           </article>
         ))}
       </section>
 
-      <section className="island-shell mt-8 rounded-2xl p-6">
-        <p className="island-kicker mb-2">Quick Start</p>
-        <ul className="m-0 list-disc space-y-2 pl-5 text-sm text-[var(--sea-ink-soft)]">
-          <li>
-            Edit <code>src/routes/index.tsx</code> to customize the home page.
-          </li>
-          <li>
-            Update <code>src/components/Header.tsx</code> and{' '}
-            <code>src/components/Footer.tsx</code> for brand links.
-          </li>
-          <li>
-            Add routes in <code>src/routes</code> and tweak visual tokens in{' '}
-            <code>src/styles.css</code>.
-          </li>
-        </ul>
+      <section className="mt-10 rounded-3xl border border-[#594511] bg-black/55 p-8">
+        <h2 className="text-3xl font-semibold text-[#f3d56d]">Verified customer testimonials</h2>
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          {testimonials.map((testimonial) => (
+            <blockquote key={testimonial.name} className="rounded-2xl border border-[#594511] bg-[#131313] p-5">
+              <p className="text-sm leading-6 text-stone-300">“{testimonial.text}”</p>
+              <footer className="mt-3 text-xs font-semibold tracking-[0.1em] text-[#f8e7aa]">{testimonial.name}</footer>
+            </blockquote>
+          ))}
+        </div>
+      </section>
+
+      <section id="free-quote" className="mt-10 grid gap-6 lg:grid-cols-2">
+        <form onSubmit={handleQuoteSubmit} className="rounded-3xl border border-[#594511] bg-[#101010] p-7">
+          <h2 className="text-2xl font-semibold text-[#f3d56d]">Free quote request</h2>
+          <p className="mt-2 text-sm text-stone-300">Every submission is captured in our live lead database.</p>
+          <div className="mt-5 grid gap-3">
+            <input
+              required
+              placeholder="Your name"
+              value={form.name}
+              onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+              className="rounded-xl border border-[#594511] bg-black/60 px-4 py-3 text-stone-100"
+            />
+            <input
+              required
+              placeholder="Phone"
+              value={form.phone}
+              onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
+              className="rounded-xl border border-[#594511] bg-black/60 px-4 py-3 text-stone-100"
+            />
+            <input
+              type="email"
+              placeholder="Email (optional)"
+              value={form.email}
+              onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+              className="rounded-xl border border-[#594511] bg-black/60 px-4 py-3 text-stone-100"
+            />
+            <select
+              value={form.serviceInterest}
+              onChange={(event) => setForm((current) => ({ ...current, serviceInterest: event.target.value }))}
+              className="rounded-xl border border-[#594511] bg-black/60 px-4 py-3 text-stone-100"
+            >
+              <option>Slating</option>
+              <option>Tiling</option>
+              <option>Flat Roofing</option>
+            </select>
+            <textarea
+              required
+              placeholder="Tell us about your roof"
+              value={form.message}
+              onChange={(event) => setForm((current) => ({ ...current, message: event.target.value }))}
+              className="min-h-28 rounded-xl border border-[#594511] bg-black/60 px-4 py-3 text-stone-100"
+            />
+          </div>
+          <button type="submit" className="mt-5 rounded-full bg-[#d4af37] px-6 py-3 font-semibold text-black">
+            Save Request & Get Free Quote
+          </button>
+          <p className="mt-3 text-sm text-stone-300">{quoteStatus}</p>
+        </form>
+
+        <form onSubmit={handleAssistantSubmit} className="rounded-3xl border border-[#594511] bg-[#101010] p-7">
+          <h2 className="text-2xl font-semibold text-[#f3d56d]">Creation Assistant</h2>
+          <p className="mt-2 text-sm text-stone-300">AI support via OpenRouter with automatic inquiry logging to Convex.</p>
+          <textarea
+            required
+            placeholder="Ask about slating, tiling, flat roofing, timelines or pricing"
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            className="mt-4 min-h-32 w-full rounded-xl border border-[#594511] bg-black/60 px-4 py-3 text-stone-100"
+          />
+          <button type="submit" className="mt-4 rounded-full border border-[#d4af37] px-6 py-3 font-semibold text-[#f8e7aa]">
+            Ask Creation Assistant
+          </button>
+          <p className="mt-3 text-sm text-stone-300">{assistantStatus}</p>
+          {assistantReply ? (
+            <div className="mt-4 rounded-xl border border-[#594511] bg-black/70 p-4 text-sm leading-6 text-stone-200">{assistantReply}</div>
+          ) : null}
+        </form>
+      </section>
+
+      <section className="mt-10 rounded-3xl border border-[#594511] bg-black/45 p-6 text-sm leading-7 text-stone-300">
+        <p>
+          <strong className="text-[#f8e7aa]">Office:</strong> 43 Reeves Way, Peterborough, PE1 5LF
+        </p>
+        <p>
+          <strong className="text-[#f8e7aa]">Phone:</strong> 07919 435511
+        </p>
       </section>
     </main>
   )
